@@ -7,7 +7,7 @@ const app = express();
 app.use(cors()); // Allow all origins
 app.use(express.json());
 
-// Nodemailer transporter
+// Nodemailer transporter using Gmail
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 465,
@@ -18,17 +18,16 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// POST endpoint for form submissions
+// POST endpoint
 app.post("/submit-form", async (req, res) => {
-  console.log("Received form data:", req.body); // Log incoming data
-
   const formData = req.body;
+  console.log("Received form data:", formData);
 
   if (!formData || Object.keys(formData).length === 0) {
     return res.status(400).json({ success: false, error: "Form is empty." });
   }
 
-  // Build email content dynamically
+  // Build HTML content
   let htmlContent = "<h3>New Form Submission</h3>";
   for (const [key, value] of Object.entries(formData)) {
     htmlContent += `<p><b>${key}:</b> ${value}</p>`;
@@ -46,8 +45,23 @@ app.post("/submit-form", async (req, res) => {
     console.log("Email sent successfully:", info.response);
     res.json({ success: true, message: "Email sent successfully" });
   } catch (err) {
+    // Detect common Gmail errors
+    let errorMessage = err.message;
+
+    if (err.responseCode === 535) {
+      errorMessage = "Authentication failed. Check your email and app password.";
+    } else if (err.responseCode === 534) {
+      errorMessage = "Gmail blocked the sign-in. Check your account security settings.";
+    } else if (err.code === "EAUTH") {
+      errorMessage = "Email authentication error. Verify credentials and app password.";
+    }
+
     console.error("Error sending email:", err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({
+      success: false,
+      error: errorMessage,
+      rawError: err.toString() // include raw error for debugging
+    });
   }
 });
 
